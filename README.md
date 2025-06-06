@@ -2,6 +2,8 @@
 
 一個結合機器學習和 ChatGPT 的智能蔬果辨識系統，能夠檢測蔬果新鮮度並提供專業建議。
 
+示範網頁: https://jeremy641.github.io/VegetableRecognition/
+
 ## ✨ 功能特色
 
 ### 🔍 雙重辨識模式
