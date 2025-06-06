@@ -267,8 +267,8 @@ console.log('設定已清除，請重新設定 API Key');
 ## 📞 聯絡資訊
 
 如有任何問題或建議，歡迎聯絡：
-- 📧 Email: [your-email@example.com]
-- 🐙 GitHub: [your-github-username]
+- 📧 Email: [jeremy641@gmail.com]
+- 🐙 GitHub: [jeremy641]
 
 ---
 
