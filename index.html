@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蔬果辨識系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            color: #2d3436;
+            text-align: center;
+            padding: 1.5rem;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00b894;
+        }
+
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            color: #636e72;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            padding: 20px;
+            flex-wrap: wrap;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .left-panel {
+            flex: 1;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .right-panel {
+            flex: 1;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .detection-section {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            margin-bottom: 20px;
+        }
+
+        .chat-section {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .welcome-message {
+            margin-bottom: 20px;
+        }
+
+        .ai-message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00b894, #00a085);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 15px 15px 15px 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 85%;
+            line-height: 1.6;
+        }
+
+        .message-content p {
+            margin: 0 0 10px 0;
+        }
+
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-content ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .message-content li {
+            margin: 5px 0;
+        }
+
+        .chat-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #636e72;
+            font-style: italic;
+        }
+
+        .loading-dots {
+            display: flex;
+            margin-right: 10px;
+        }
+
+        .loading-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00b894;
+            margin: 0 2px;
+            animation: loadingDots 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes loadingDots {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 1024px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .left-panel, .right-panel {
+                min-width: 100%;
+                max-width: 100%;
+            }
+            
+            .chat-section {
+                height: 500px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 10px;
+            }
+            
+            .detection-section, .chat-section {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .message-content {
+                max-width: 90%;
+            }
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 1.5rem;
+            color: #2d3436;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        #webcam-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #webcam-container canvas {
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 100%;
+            height: auto;
+        }
+
+        .upload-area {
+            border: 3px dashed #00b894;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            background-color: rgba(0, 184, 148, 0.1);
+            border-color: #00a085;
+        }
+
+        .upload-area.dragover {
+            background-color: rgba(0, 184, 148, 0.2);
+            border-color: #00a085;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin-top: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .button.start {
+            background: linear-gradient(135deg, #00b894, #00a085);
+        }
+
+        .button.stop {
+            background: linear-gradient(135deg, #e17055, #d63031);
+        }
+
+        .button.upload {
+            background: linear-gradient(135deg, #0984e3, #74b9ff);
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-panel {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 5px solid #00b894;
+        }
+
+        .result-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 16px;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .confidence-high {
+            color: #00b894;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+
+        .confidence-medium {
+            color: #fdcb6e;
+            font-weight: bold;
+        }
+
+        .confidence-low {
+            color: #636e72;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .status-indicator {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #ddd, #bbb);
+            margin: 15px auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-indicator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .status-good {
+            background: linear-gradient(135deg, #00b894, #00a085);
+        }
+
+        .status-bad {
+            background: linear-gradient(135deg, #e17055, #d63031);
+        }
+
+        .status-unripe {
+            background: linear-gradient(135deg, #fdcb6e, #e17055);
+        }
+
+        .help-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 320px;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .help-panel.active {
+            transform: translateX(0);
+        }
+
+        .help-panel h2 {
+            margin: 0;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #00b894;
+            color: #2d3436;
+        }
+
+        .help-panel .close-btn {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+            padding: 12px;
+            background: linear-gradient(135deg, #e17055, #d63031);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .help-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+            background: linear-gradient(135deg, #fdcb6e, #e17055);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        #loadingStatus {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 16px;
+            color: white;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .detection-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 184, 148, 0.1);
+            border-radius: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        /* 模型選擇器樣式 */
+        .model-selector-container {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .model-label {
+            display: block;
+            font-weight: bold;
+            color: #2d3436;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .model-selector {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #00b894;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            color: #2d3436;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .model-selector:hover {
+            border-color: #00a085;
+            box-shadow: 0 2px 8px rgba(0, 184, 148, 0.2);
+        }
+
+        .model-selector:focus {
+            outline: none;
+            border-color: #00a085;
+            box-shadow: 0 0 0 3px rgba(0, 184, 148, 0.1);
+        }
+
+        .model-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 184, 148, 0.1);
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .model-description {
+            color: #636e72;
+            font-style: italic;
+        }
+
+        .model-cost {
+            font-weight: bold;
+            color: #00b894;
+        }
+
+        .model-cost.high {
+            color: #e17055;
+        }
+
+        .model-cost.medium {
+            color: #fdcb6e;
+        }
+
+        .model-cost.low {
+            color: #00b894;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🍎 蔬果辨識系統 🍌</h1>
+        <p>AI 智能檢測蔬果新鮮度 - 檢測蔬果是否腐爛或未成熟</p>
+    </div>
+
+    <!-- 操作說明按鈕 -->
+    <div class="help-toggle">操作說明</div>
+
+    <!-- 操作說明面板 -->
+    <div class="help-panel" id="helpPanel">
+        <h2>操作說明</h2>
+        <p><strong>歡迎使用蔬果辨識系統！</strong></p>
+        <h3>功能介紹：</h3>
+        <ul>
+            <li><strong>即時攝像頭辨識：</strong>啟動攝像頭進行即時蔬果檢測</li>
+            <li><strong>圖片上傳辨識：</strong>上傳圖片進行蔬果狀態分析</li>
+        </ul>
+        <h3>辨識類別：</h3>
+        <ul>
+            <li>🍎 蘋果（良好/腐爛/未成熟）</li>
+            <li>🍌 香蕉（良好/腐爛/未成熟）</li>
+            <li>🍊 橘子（良好/腐爛/未成熟）</li>
+            <li>❓ 其他物品</li>
+        </ul>
+        <h3>使用方式：</h3>
+        <ol>
+            <li>選擇「攝像頭辨識」或「圖片上傳」</li>
+            <li>等待 AI 分析結果</li>
+            <li>信心度達90%時會發出提示音</li>
+        </ol>
+        <div class="close-btn" onclick="toggleHelpPanel()">關閉</div>
+    </div>
+
+    <div class="main-container">
+        <!-- 左側：辨識功能區塊 -->
+        <div class="left-panel">
+            <!-- 攝像頭辨識區塊 -->
+            <div class="detection-section">
+                <div class="section-title">📹 攝像頭辨識</div>
+                <div id="webcam-container"></div>
+                <div class="status-indicator" id="webcam-status"></div>
+                <div class="controls">
+                    <button id="startWebcamBtn" class="button start">開始攝像頭辨識</button>
+                    <button id="stopWebcamBtn" class="button stop">停止攝像頭辨識</button>
+                </div>
+                <div class="result-panel">
+                    <div id="webcamResults">攝像頭辨識結果: 等待開始...</div>
+                </div>
+            </div>
+
+            <!-- 圖片上傳辨識區塊 -->
+            <div class="detection-section">
+                <div class="section-title">📁 圖片上傳辨識</div>
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <div>📸 點擊或拖拽圖片到此處</div>
+                    <div style="font-size: 14px; color: #636e72; margin-top: 10px;">
+                        支援 JPG、PNG、GIF 格式 - 上傳後自動分析
+                    </div>
+                    <img id="imagePreview" style="display: none;" />
+                </div>
+                <input type="file" id="fileInput" accept="image/*" />
+                <div class="status-indicator" id="upload-status"></div>
+                <div class="controls">
+                    <button id="analyzeBtn" class="button upload" disabled style="display: none;">分析圖片</button>
+                    <button id="clearBtn" class="button stop">清除圖片</button>
+                </div>
+                <div class="result-panel">
+                    <div id="uploadResults">圖片辨識結果: 等待上傳...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：AI 建議對話區塊 -->
+        <div class="right-panel">
+            <div class="chat-section">
+                <div class="section-title">🤖 AI 智能建議</div>
+                
+                <!-- 模型選擇區塊 -->
+                <div class="model-selector-container">
+                    <label for="modelSelector" class="model-label">🔧 選擇 AI 模型：</label>
+                    <select id="modelSelector" class="model-selector">
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo (快速、經濟)</option>
+                        <option value="gpt-4">GPT-4 (高品質、較慢)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo (平衡選擇)</option>
+                        <option value="gpt-4o">GPT-4o (最新模型)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (輕量版)</option>
+                    </select>
+                    <div class="model-info" id="modelInfo">
+                        <span class="model-description">快速回應，適合一般建議</span>
+                        <span class="model-cost">💰 低成本</span>
+                    </div>
+                </div>
+                <div class="chat-container" id="chatContainer">
+                    <div class="welcome-message">
+                        <div class="ai-message">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">
+                                <p>您好！我是您的蔬果專家助手。</p>
+                                <p>當您完成蔬果辨識後，我會根據辨識結果為您提供：</p>
+                                <ul>
+                                    <li>🍎 處理和保存建議</li>
+                                    <li>🥗 食用和料理方法</li>
+                                    <li>📚 營養價值科普</li>
+                                    <li>⚠️ 注意事項提醒</li>
+                                </ul>
+                                <p>請開始辨識您的蔬果吧！</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-loading" id="chatLoading" style="display: none;">
+                    <div class="loading-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <span>AI 正在分析中...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 辨識說明 -->
+    <div style="max-width: 800px; margin: 20px auto; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 15px;">
+        <h3 style="text-align: center; color: #2d3436;">辨識狀態說明</h3>
+        <div class="detection-legend">
+            <div class="legend-item">
+                <div class="legend-color status-good"></div>
+                <span>良好狀態</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color status-bad"></div>
+                <span>腐爛狀態</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color status-unripe"></div>
+                <span>未成熟狀態</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="loadingStatus">
+        <p>🤖 AI 模型加載中，請稍候...</p>
+    </div>
+
+    <script>
+        // 操作說明面板開關
+        const helpPanel = document.getElementById('helpPanel');
+        const helpToggle = document.querySelector('.help-toggle');
+
+        function toggleHelpPanel() {
+            helpPanel.classList.toggle('active');
+        }
+
+        helpToggle.addEventListener('click', toggleHelpPanel);
+
+        // AI 模型相關變數
+        const URL = "https://teachablemachine.withgoogle.com/models/95JhNZvMx/";
+        let model, webcam, maxPredictions;
+        let isWebcamDetecting = false;
+
+        // API 設定 - 直接使用 HTML 文件模式
+        const API_CONFIG = {
+            // 方法1: 使用本地代理服務器（推薦）
+            useProxy: false,  // 改為 false，直接使用 HTML
+            proxyUrl: '/api/chat',
+            
+            // 方法2: 使用環境變數或外部配置
+            openaiApiKey: window.OPENAI_API_KEY || localStorage.getItem('openai_api_key') || '',
+            openaiApiUrl: 'https://api.openai.com/v1/chat/completions',
+            
+            // 方法3: 使用 Vercel/Netlify Functions
+            useServerless: false,
+            serverlessUrl: '/api/chat-function'
+        };
+
+        // 蔬果分類對應
+        const fruitCategories = {
+            good: ['良好的蘋果', '良好的香蕉', '良好的橘子'],
+            rotten: ['腐爛的蘋果', '腐爛的香蕉', '腐爛的橘子'],
+            unripe: ['未成熟的蘋果', '未成熟的香蕉', '未成熟的橘子'],
+            other: ['其他']
+        };
+
+        // 模型選擇器功能
+        const modelSelector = document.getElementById('modelSelector');
+        const modelInfo = document.getElementById('modelInfo');
+        
+        // 模型資訊配置
+        const modelConfigs = {
+            'gpt-3.5-turbo': {
+                description: '快速回應，適合一般建議',
+                cost: '💰 低成本',
+                costClass: 'low'
+            },
+            'gpt-4': {
+                description: '高品質回應，更詳細專業',
+                cost: '💰💰💰 高成本',
+                costClass: 'high'
+            },
+            'gpt-4-turbo': {
+                description: '平衡速度與品質',
+                cost: '💰💰 中等成本',
+                costClass: 'medium'
+            },
+            'gpt-4o': {
+                description: '最新模型，功能最強',
+                cost: '💰💰 中等成本',
+                costClass: 'medium'
+            },
+            'gpt-4o-mini': {
+                description: '輕量版，快速且經濟',
+                cost: '💰 低成本',
+                costClass: 'low'
+            }
+        };
+
+        // 初始化模型選擇器
+        function initializeModelSelector() {
+            // 從 localStorage 載入保存的模型選擇
+            const savedModel = localStorage.getItem('selected_model') || 'gpt-3.5-turbo';
+            modelSelector.value = savedModel;
+            updateModelInfo(savedModel);
+            
+            // 綁定選擇變更事件
+            modelSelector.addEventListener('change', function() {
+                const selectedModel = this.value;
+                updateModelInfo(selectedModel);
+                // 保存選擇到 localStorage
+                localStorage.setItem('selected_model', selectedModel);
+                
+                // 顯示模型切換提示
+                addAIMessage(`🔄 已切換到 ${modelConfigs[selectedModel].description} 模型。下次辨識時將使用新模型。`);
+            });
+        }
+
+        // 更新模型資訊顯示
+        function updateModelInfo(modelKey) {
+            const config = modelConfigs[modelKey];
+            if (config) {
+                const descriptionSpan = modelInfo.querySelector('.model-description');
+                const costSpan = modelInfo.querySelector('.model-cost');
+                
+                descriptionSpan.textContent = config.description;
+                costSpan.textContent = config.cost;
+                costSpan.className = `model-cost ${config.costClass}`;
+            }
+        }
+
+        // 獲取當前選中的模型
+        function getCurrentModel() {
+            return modelSelector.value || 'gpt-3.5-turbo';
+        }
+
+        // ChatGPT 對話功能 - 支援多種安全調用方式
+        async function getChatGPTAdvice(fruitResult, confidence) {
+            const chatLoading = document.getElementById('chatLoading');
+            const chatContainer = document.getElementById('chatContainer');
+            
+            // 顯示載入動畫
+            chatLoading.style.display = 'flex';
+            
+            try {
+                let response;
+                let advice;
+
+                if (API_CONFIG.useProxy) {
+                    // 方法1: 使用本地代理服務器（推薦）
+                    response = await fetch(API_CONFIG.proxyUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            fruitResult: fruitResult,
+                            confidence: confidence
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`代理服務器錯誤: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    if (data.success) {
+                        advice = data.advice;
+                    } else {
+                        throw new Error(data.error || '代理服務器回應錯誤');
+                    }
+
+                } else if (API_CONFIG.useServerless) {
+                    // 方法3: 使用 Serverless Functions
+                    response = await fetch(API_CONFIG.serverlessUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            fruitResult: fruitResult,
+                            confidence: confidence
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Serverless 函數錯誤: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    advice = data.advice || data.message;
+
+                } else if (API_CONFIG.openaiApiKey) {
+                    // 方法2: 直接調用 OpenAI API（僅開發環境）
+                    console.warn('⚠️ 警告：正在使用直接 API 調用，這在生產環境中不安全！');
+                    
+                    const prompt = `我剛剛用AI辨識了一個蔬果，結果是「${fruitResult}」，信心度為${confidence}%。
+
+請以專業蔬果專家的身份，用繁體中文為我提供以下建議：
+
+1. 🍎 **處理和保存建議**：根據這個蔬果的狀態，我應該如何處理和保存？
+2. 🥗 **食用和料理方法**：推薦適合的食用方式或料理方法
+3. 📚 **營養價值科普**：這個蔬果的營養成分和健康益處
+4. ⚠️ **注意事項提醒**：有什麼需要特別注意的地方？
+
+請用親切、專業的語調回答，並使用適當的表情符號讓回答更生動。回答要實用且具體。`;
+
+                    response = await fetch(API_CONFIG.openaiApiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${API_CONFIG.openaiApiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: getCurrentModel(),
+                            messages: [
+                                {
+                                    role: "system",
+                                    content: "你是一位專業的蔬果專家，擅長提供蔬果處理、保存、營養和料理建議。請用繁體中文回答，語調要親切專業。"
+                                },
+                                {
+                                    role: "user",
+                                    content: prompt
+                                }
+                            ],
+                            max_tokens: 1000,
+                            temperature: 0.7
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`OpenAI API 錯誤: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    advice = data.choices[0].message.content;
+
+                } else {
+                    // 沒有配置任何 API，顯示模擬回應
+                    advice = generateMockAdvice(fruitResult, confidence);
+                }
+
+                // 隱藏載入動畫
+                chatLoading.style.display = 'none';
+
+                // 添加 AI 回應到對話容器
+                addAIMessage(advice);
+
+            } catch (error) {
+                console.error('ChatGPT API 錯誤:', error);
+                chatLoading.style.display = 'none';
+                
+                // 顯示錯誤訊息和備用建議
+                const fallbackAdvice = generateMockAdvice(fruitResult, confidence);
+                addAIMessage(`⚠️ AI 建議服務暫時無法使用，以下是基本建議：\n\n${fallbackAdvice}\n\n如需完整 AI 建議，請稍後再試。`);
+            }
+        }
+
+        // 生成模擬建議（當 API 不可用時）
+        function generateMockAdvice(fruitResult, confidence) {
+            const fruitType = fruitResult.includes('蘋果') ? '蘋果' : 
+                             fruitResult.includes('香蕉') ? '香蕉' : 
+                             fruitResult.includes('橘子') ? '橘子' : '蔬果';
+            
+            const condition = fruitResult.includes('良好') ? '良好' : 
+                             fruitResult.includes('腐爛') ? '腐爛' : 
+                             fruitResult.includes('未成熟') ? '未成熟' : '未知';
+
+            let advice = `根據辨識結果「${fruitResult}」（信心度 ${confidence}%），以下是專業建議：\n\n`;
+
+            // 根據不同狀態提供完整建議
+            if (condition === '良好') {
+                advice += `🍎 **處理和保存建議**：\n`;
+                if (fruitType === '蘋果') {
+                    advice += `• 可以直接食用，營養價值最佳\n`;
+                    advice += `• 存放在冰箱冷藏室可保存 1-2 週\n`;
+                    advice += `• 室溫下可保存 3-5 天\n`;
+                    advice += `• 避免與香蕉等催熟水果一起存放\n\n`;
+                } else if (fruitType === '香蕉') {
+                    advice += `• 室溫保存，避免冷藏\n`;
+                    advice += `• 可懸掛保存，減少接觸面積\n`;
+                    advice += `• 建議 2-3 天內食用完畢\n`;
+                    advice += `• 如要延長保存，可分開存放\n\n`;
+                } else if (fruitType === '橘子') {
+                    advice += `• 室溫下可保存 1 週\n`;
+                    advice += `• 冷藏可延長至 2-3 週\n`;
+                    advice += `• 保持通風，避免潮濕\n`;
+                    advice += `• 發現軟爛應立即食用或丟棄\n\n`;
+                }
+                
+                advice += `🥗 **食用和料理方法**：\n`;
+                if (fruitType === '蘋果') {
+                    advice += `• 直接食用，保留果皮營養更豐富\n`;
+                    advice += `• 製作蘋果汁、蘋果派或沙拉\n`;
+                    advice += `• 可切片搭配花生醬或優格\n`;
+                    advice += `• 烘烤製作健康零食\n\n`;
+                } else if (fruitType === '香蕉') {
+                    advice += `• 直接剝皮食用，方便快速\n`;
+                    advice += `• 製作香蕉奶昔或果汁\n`;
+                    advice += `• 切片加入燕麥或優格\n`;
+                    advice += `• 烘焙香蕉麵包或馬芬\n\n`;
+                } else if (fruitType === '橘子') {
+                    advice += `• 剝皮直接食用，補充維生素 C\n`;
+                    advice += `• 榨汁飲用，但建議連果肉一起\n`;
+                    advice += `• 製作水果沙拉或甜點\n`;
+                    advice += `• 橘皮可製作陳皮或調味料\n\n`;
+                }
+
+                advice += `📚 **營養價值科普**：\n`;
+                if (fruitType === '蘋果') {
+                    advice += `• 富含膳食纖維，有助消化健康\n`;
+                    advice += `• 含有維生素 C 和抗氧化物質\n`;
+                    advice += `• 果膠有助降低膽固醇\n`;
+                    advice += `• 低熱量，適合體重管理\n\n`;
+                } else if (fruitType === '香蕉') {
+                    advice += `• 高鉀含量，有益心血管健康\n`;
+                    advice += `• 含維生素 B6，支持神經功能\n`;
+                    advice += `• 天然糖分，快速補充能量\n`;
+                    advice += `• 膳食纖維促進腸道健康\n\n`;
+                } else if (fruitType === '橘子') {
+                    advice += `• 維生素 C 含量極高，增強免疫力\n`;
+                    advice += `• 含葉酸，對孕婦特別有益\n`;
+                    advice += `• 類黃酮具抗炎作用\n`;
+                    advice += `• 低熱量高纖維，有助減重\n\n`;
+                }
+
+                advice += `⚠️ **注意事項提醒**：\n`;
+                advice += `• 食用前請清洗乾淨\n`;
+                advice += `• 糖尿病患者應適量食用\n`;
+                advice += `• 過敏體質者首次食用請注意反應\n`;
+                advice += `• 建議作為均衡飲食的一部分\n\n`;
+
+            } else if (condition === '腐爛') {
+                advice += `⚠️ **重要安全提醒**：\n`;
+                advice += `• 強烈建議不要食用腐爛的蔬果\n`;
+                advice += `• 可能含有有害細菌、黴菌或毒素\n`;
+                advice += `• 食用後可能引起腸胃不適或食物中毒\n`;
+                advice += `• 請立即丟棄，避免污染其他食物\n\n`;
+
+                advice += `🗑️ **正確處理方法**：\n`;
+                advice += `• 用塑膠袋包裝後丟入垃圾桶\n`;
+                advice += `• 清潔接觸過的表面和容器\n`;
+                advice += `• 檢查附近其他水果是否受影響\n`;
+                advice += `• 徹底洗手，避免交叉污染\n\n`;
+
+                advice += `🔍 **預防腐爛小貼士**：\n`;
+                advice += `• 購買時選擇新鮮、無損傷的水果\n`;
+                advice += `• 適當的溫度和濕度保存\n`;
+                advice += `• 定期檢查，及時處理變質水果\n`;
+                advice += `• 避免過度堆疊造成壓傷\n\n`;
+
+                advice += `📚 **健康知識**：\n`;
+                advice += `• 腐爛是微生物分解有機物的自然過程\n`;
+                advice += `• 黴菌毒素對人體有害，不可忽視\n`;
+                advice += `• 即使切除腐爛部分，毒素可能已擴散\n`;
+                advice += `• 選擇新鮮食材是健康飲食的基礎\n\n`;
+
+            } else if (condition === '未成熟') {
+                advice += `🍎 **催熟和保存建議**：\n`;
+                if (fruitType === '蘋果') {
+                    advice += `• 放置室溫下自然熟成 3-5 天\n`;
+                    advice += `• 與成熟蘋果或香蕉一起存放加速熟成\n`;
+                    advice += `• 避免冷藏，會阻礙熟成過程\n`;
+                    advice += `• 熟成後果肉會變軟，甜度增加\n\n`;
+                } else if (fruitType === '香蕉') {
+                    advice += `• 室溫下 2-4 天即可完全熟成\n`;
+                    advice += `• 可用紙袋包裝加速熟成\n`;
+                    advice += `• 避免陽光直射和低溫環境\n`;
+                    advice += `• 熟成標誌：果皮變黃，出現黑點\n\n`;
+                } else if (fruitType === '橘子') {
+                    advice += `• 室溫下繼續熟成 1-2 週\n`;
+                    advice += `• 與蘋果一起存放可加速熟成\n`;
+                    advice += `• 保持適當濕度，避免過度乾燥\n`;
+                    advice += `• 熟成後果皮會變軟，更易剝離\n\n`;
+                }
+
+                advice += `🥗 **未成熟時的食用建議**：\n`;
+                if (fruitType === '蘋果') {
+                    advice += `• 可以食用，但口感較硬、酸澀\n`;
+                    advice += `• 適合製作蘋果醋或料理用途\n`;
+                    advice += `• 營養價值略低於成熟蘋果\n`;
+                    advice += `• 建議等待熟成後食用口感更佳\n\n`;
+                } else if (fruitType === '香蕉') {
+                    advice += `• 未熟香蕉較硬，澱粉含量高\n`;
+                    advice += `• 可以煮食，如香蕉煎餅或湯品\n`;
+                    advice += `• 生食可能較難消化\n`;
+                    advice += `• 建議等到果皮變黃後食用\n\n`;
+                } else if (fruitType === '橘子') {
+                    advice += `• 可以食用，但較酸澀\n`;
+                    advice += `• 維生素 C 含量仍然豐富\n`;
+                    advice += `• 可製作果醬或調味料\n`;
+                    advice += `• 熟成後甜度和口感會大幅改善\n\n`;
+                }
+
+                advice += `📚 **營養價值**：\n`;
+                advice += `• ${fruitType}即使未完全熟成仍含豐富營養\n`;
+                advice += `• 維生素和礦物質含量基本不變\n`;
+                advice += `• 熟成過程中澱粉轉化為糖分\n`;
+                advice += `• 適當等待熟成可獲得最佳營養和口感\n\n`;
+
+                advice += `⚠️ **注意事項**：\n`;
+                advice += `• 避免食用過度未熟的水果\n`;
+                advice += `• 腸胃敏感者建議等待完全熟成\n`;
+                advice += `• 熟成過程中定期檢查，避免過熟\n`;
+                advice += `• 耐心等待，美味值得期待\n\n`;
+            }
+
+            advice += `💡 **專業小提示**：這是基於水果特性的基本建議。如需更詳細的個人化營養建議，建議諮詢營養師或確保 AI 服務正常運作以獲得更專業的分析。`;
+
+            return advice;
+        }
+
+        // 添加 AI 訊息到對話容器
+        function addAIMessage(content) {
+            const chatContainer = document.getElementById('chatContainer');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'ai-message';
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    ${formatMessageContent(content)}
+                </div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            
+            // 滾動到最新訊息
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 格式化訊息內容
+        function formatMessageContent(content) {
+            // 將換行符號轉換為 <br>
+            let formatted = content.replace(/\n/g, '<br>');
+            
+            // 將 **文字** 轉換為粗體
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // 將數字列表格式化
+            formatted = formatted.replace(/^(\d+\.\s)/gm, '<br><strong>$1</strong>');
+            
+            return formatted;
+        }
+
+        // 音效播放
+        function playNotificationSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+
+        // 取得狀態指示器顏色
+        function getStatusClass(className) {
+            if (fruitCategories.good.includes(className)) return 'status-good';
+            if (fruitCategories.rotten.includes(className)) return 'status-bad';
+            if (fruitCategories.unripe.includes(className)) return 'status-unripe';
+            return '';
+        }
+
+        // 載入模型
+        async function loadModel() {
+            try {
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+                
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+                
+                console.log("蔬果辨識模型載入完成！");
+                document.getElementById("loadingStatus").innerHTML = "<p>✅ AI 模型已載入完成！可以開始辨識。</p>";
+            } catch (error) {
+                console.error("模型載入失敗", error);
+                document.getElementById("loadingStatus").innerHTML = "<p>❌ 模型載入失敗，請檢查網絡連接或模型路徑。</p>";
+            }
+        }
+
+        // 開始攝像頭辨識
+        async function startWebcamDetection() {
+            if (!model) {
+                alert("AI 模型尚未載入完成！");
+                return;
+            }
+            
+            if (!isWebcamDetecting) {
+                try {
+                    isWebcamDetecting = true;
+                    document.getElementById('webcamResults').innerHTML = "📹 攝像頭辨識中...";
+                    
+                    const flip = true;
+                    webcam = new tmImage.Webcam(300, 300, flip);
+                    await webcam.setup();
+                    await webcam.play();
+
+                    document.getElementById("webcam-container").appendChild(webcam.canvas);
+                    
+                    webcamLoop();
+                } catch (error) {
+                    console.error("啟動攝像頭失敗", error);
+                    alert("無法啟動攝像頭，請檢查權限設定。");
+                    isWebcamDetecting = false;
+                }
+            }
+        }
+
+        // 攝像頭辨識循環
+        async function webcamLoop() {
+            if (!isWebcamDetecting) return;
+            
+            webcam.update();
+            await predictWebcam();
+            requestAnimationFrame(webcamLoop);
+        }
+
+        // 攝像頭預測
+        async function predictWebcam() {
+            const prediction = await model.predict(webcam.canvas);
+            let maxPrediction = prediction.reduce((prev, curr) => 
+                prev.probability > curr.probability ? prev : curr
+            );
+            
+            updateResults('webcamResults', 'webcam-status', prediction, maxPrediction);
+        }
+
+        // 停止攝像頭辨識
+        function stopWebcamDetection() {
+            isWebcamDetecting = false;
+            document.getElementById('webcamResults').innerHTML = "攝像頭辨識已停止。";
+            document.getElementById('webcam-status').className = 'status-indicator';
+            
+            if (webcam) {
+                webcam.stop();
+                const container = document.getElementById("webcam-container");
+                if (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
+            }
+        }
+
+        // 更新辨識結果
+        function updateResults(resultId, statusId, predictions, maxPrediction) {
+            const { className, probability } = maxPrediction;
+            const confidence = (probability * 100).toFixed(1);
+            
+            // 更新狀態指示器
+            const statusElement = document.getElementById(statusId);
+            statusElement.className = 'status-indicator ' + getStatusClass(className);
+            
+            // 播放提示音（信心度90%以上且非"其他"類別）
+            if (probability >= 0.9 && !fruitCategories.other.includes(className)) {
+                playNotificationSound();
+            }
+            
+            // 更新結果顯示
+            let resultHTML = '<div style="font-size: 18px; font-weight: bold; margin-bottom: 15px;">';
+            resultHTML += `🎯 主要辨識結果: ${className} (${confidence}%)`;
+            resultHTML += '</div>';
+            
+            resultHTML += '<div style="font-size: 14px;">';
+            resultHTML += '<strong>所有辨識結果:</strong><br>';
+            
+            predictions
+                .sort((a, b) => b.probability - a.probability)
+                .forEach(pred => {
+                    const conf = (pred.probability * 100).toFixed(1);
+                    let confClass = 'confidence-low';
+                    if (pred.probability >= 0.9) confClass = 'confidence-high';
+                    else if (pred.probability >= 0.5) confClass = 'confidence-medium';
+                    
+                    resultHTML += `<div class="result-item"><span class="${confClass}">${pred.className}: ${conf}%</span></div>`;
+                });
+            
+            resultHTML += '</div>';
+            document.getElementById(resultId).innerHTML = resultHTML;
+            
+            // 如果信心度足夠高且不是"其他"類別，自動獲取 AI 建議
+            if (probability >= 0.7 && !fruitCategories.other.includes(className)) {
+                // 延遲一下再調用，讓用戶先看到辨識結果
+                setTimeout(() => {
+                    getChatGPTAdvice(className, confidence);
+                }, 1000);
+            }
+        }
+
+        // 圖片上傳相關
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const imagePreview = document.getElementById('imagePreview');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+
+        fileInput.addEventListener('change', handleFileSelect);
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('drop', handleDrop);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                displayImage(file);
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            uploadArea.classList.add('dragover');
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                displayImage(file);
+            }
+        }
+
+        function displayImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                analyzeBtn.disabled = false;
+                // 自動分析圖片
+                setTimeout(() => {
+                    analyzeUploadedImage();
+                }, 100);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 分析上傳的圖片
+        async function analyzeUploadedImage() {
+            if (!model) {
+                alert("AI 模型尚未載入完成！");
+                return;
+            }
+            
+            if (!imagePreview.src) {
+                alert("請先上傳圖片！");
+                return;
+            }
+            
+            try {
+                document.getElementById('uploadResults').innerHTML = "🔍 分析中...";
+                const prediction = await model.predict(imagePreview);
+                let maxPrediction = prediction.reduce((prev, curr) => 
+                    prev.probability > curr.probability ? prev : curr
+                );
+                
+                updateResults('uploadResults', 'upload-status', prediction, maxPrediction);
+            } catch (error) {
+                console.error("圖片分析失敗", error);
+                document.getElementById('uploadResults').innerHTML = "❌ 圖片分析失敗，請重試。";
+            }
+        }
+
+        // 清除圖片
+        function clearUploadedImage() {
+            imagePreview.style.display = 'none';
+            imagePreview.src = '';
+            fileInput.value = '';
+            analyzeBtn.disabled = true;
+            document.getElementById('uploadResults').innerHTML = "圖片辨識結果: 等待上傳...";
+            document.getElementById('upload-status').className = 'status-indicator';
+        }
+
+        // 綁定事件
+        document.getElementById('startWebcamBtn').onclick = startWebcamDetection;
+        document.getElementById('stopWebcamBtn').onclick = stopWebcamDetection;
+        document.getElementById('analyzeBtn').onclick = analyzeUploadedImage;
+        document.getElementById('clearBtn').onclick = clearUploadedImage;
+
+        // 移除拖拽效果
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        // 載入模型
+        loadModel();
+        
+        // 初始化模型選擇器
+        initializeModelSelector();
+    </script>
+</body>
+</html>
